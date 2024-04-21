@@ -1,0 +1,394 @@
+{
+  "Comment": "ステートマシンの説明",
+  "StartAt": "電圧区分",
+  "States": {
+    "電圧区分": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "高圧",
+          "States": {
+            "高圧": {
+              "Type": "Task",
+              "Parameters": {
+                "Bucket": "p3-dhub-stg",
+                "Prefix": "interact/jisseki/input/sokuhou-high/",
+                "Delimiter": "/"
+              },
+              "Resource": "arn:aws:states:::aws-sdk:s3:listObjects",
+              "ResultSelector": {
+                "CommonPrefixes.$": "$.CommonPrefixes[*][*]"
+              },
+              "Next": "高圧・事業者毎MAP"
+            },
+            "高圧・事業者毎MAP": {
+              "Type": "Map",
+              "ItemProcessor": {
+                "ProcessorConfig": {
+                  "Mode": "INLINE"
+                },
+                "StartAt": "高圧・エリア毎",
+                "States": {
+                  "高圧・エリア毎": {
+                    "Type": "Parallel",
+                    "Branches": [
+                      {
+                        "StartAt": "高圧・エリア1",
+                        "States": {
+                          "高圧・エリア1": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::lambda:invoke",
+                            "Parameters": {
+                              "FunctionName": "arn:aws:lambda:ap-northeast-1:123456781234:function:dhub-stg-use-sokuhou:$LATEST",
+                              "Payload": {
+                                "target_key.$": "$",
+                                "area_id": "01",
+                                "power_volume_no": "JP06123"
+                              }
+                            },
+                            "Retry": [
+                              {
+                                "ErrorEquals": [
+                                  "Lambda.ServiceException",
+                                  "Lambda.AWSLambdaException",
+                                  "Lambda.SdkClientException",
+                                  "Lambda.TooManyRequestsException"
+                                ],
+                                "IntervalSeconds": 1,
+                                "MaxAttempts": 3,
+                                "BackoffRate": 2
+                              }
+                            ],
+                            "End": true
+                          }
+                        }
+                      },
+                      {
+                        "StartAt": "高圧・エリア2",
+                        "States": {
+                          "高圧・エリア2": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::lambda:invoke",
+                            "Parameters": {
+                              "FunctionName": "arn:aws:lambda:ap-northeast-1:123456781234:function:dhub-stg-use-sokuhou:$LATEST",
+                              "Payload": {
+                                "target_key.$": "$",
+                                "area_id": "02",
+                                "power_volume_no": "JP06123"
+                              }
+                            },
+                            "Retry": [
+                              {
+                                "ErrorEquals": [
+                                  "Lambda.ServiceException",
+                                  "Lambda.AWSLambdaException",
+                                  "Lambda.SdkClientException",
+                                  "Lambda.TooManyRequestsException"
+                                ],
+                                "IntervalSeconds": 1,
+                                "MaxAttempts": 3,
+                                "BackoffRate": 2
+                              }
+                            ],
+                            "End": true
+                          }
+                        }
+                      },
+                      {
+                        "StartAt": "高圧・エリア3",
+                        "States": {
+                          "高圧・エリア3": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::lambda:invoke",
+                            "Parameters": {
+                              "FunctionName": "arn:aws:lambda:ap-northeast-1:123456781234:function:dhub-stg-use-sokuhou:$LATEST",
+                              "Payload": {
+                                "target_key.$": "$",
+                                "area_id": "03",
+                                "power_volume_no": "JP06123"
+                              }
+                            },
+                            "Retry": [
+                              {
+                                "ErrorEquals": [
+                                  "Lambda.ServiceException",
+                                  "Lambda.AWSLambdaException",
+                                  "Lambda.SdkClientException",
+                                  "Lambda.TooManyRequestsException"
+                                ],
+                                "IntervalSeconds": 1,
+                                "MaxAttempts": 3,
+                                "BackoffRate": 2
+                              }
+                            ],
+                            "End": true
+                          }
+                        }
+                      }
+                    ],
+                    "End": true
+                  }
+                }
+              },
+              "End": true,
+              "ItemsPath": "$.CommonPrefixes"
+            }
+          }
+        },
+        {
+          "StartAt": "低圧",
+          "States": {
+            "低圧": {
+              "Type": "Task",
+              "Parameters": {
+                "Bucket": "p3-dhub-stg",
+                "Prefix": "interact/jisseki/input/sokuhou-low/",
+                "Delimiter": "/"
+              },
+              "Resource": "arn:aws:states:::aws-sdk:s3:listObjects",
+              "Next": "低圧・事業者毎MAP",
+              "ResultSelector": {
+                "CommonPrefixes.$": "$.CommonPrefixes[*][*]"
+              }
+            },
+            "低圧・事業者毎MAP": {
+              "Type": "Map",
+              "ItemProcessor": {
+                "ProcessorConfig": {
+                  "Mode": "INLINE"
+                },
+                "StartAt": "低圧・エリア毎",
+                "States": {
+                  "低圧・エリア毎": {
+                    "Type": "Parallel",
+                    "Branches": [
+                      {
+                        "StartAt": "事業者分岐・低圧・エリア1",
+                        "States": {
+                          "事業者分岐・低圧・エリア1": {
+                            "Type": "Choice",
+                            "Choices": [
+                              {
+                                "Variable": "$",
+                                "StringMatches": "interact/jisseki/input/sokuhou-low/4156/",
+                                "Next": "Glue・低圧・エリア1"
+                              }
+                            ],
+                            "Default": "Lambda・低圧・エリア1"
+                          },
+                          "Glue・低圧・エリア1": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::glue:startJobRun.sync",
+                            "Parameters": {
+                              "JobName": "dhub-stg-use-sokuhou",
+                              "Arguments": {
+                                "bucketName": "p3-dhub-stg",
+                                "targetKey.$": "$",
+                                "areaId": "01",
+                                "powerVolumeNo": "JP06125",
+                                "outputKey": "interact/jisseki/csv/use-sokuhou/",
+                                "hoursBefore": "0"
+                              }
+                            },
+                            "End": true
+                          },
+                          "Lambda・低圧・エリア1": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::lambda:invoke",
+                            "Parameters": {
+                              "FunctionName": "arn:aws:lambda:ap-northeast-1:123456781234:function:dhub-stg-use-sokuhou:$LATEST",
+                              "Payload": {
+                                "target_key.$": "$",
+                                "area_id": "01",
+                                "power_volume_no": "JP06125"
+                              }
+                            },
+                            "Retry": [
+                              {
+                                "ErrorEquals": [
+                                  "Lambda.ServiceException",
+                                  "Lambda.AWSLambdaException",
+                                  "Lambda.SdkClientException",
+                                  "Lambda.TooManyRequestsException"
+                                ],
+                                "IntervalSeconds": 1,
+                                "MaxAttempts": 3,
+                                "BackoffRate": 2
+                              }
+                            ],
+                            "End": true
+                          }
+                        }
+                      },
+                      {
+                        "StartAt": "事業者分岐・低圧・エリア2",
+                        "States": {
+                          "事業者分岐・低圧・エリア2": {
+                            "Type": "Choice",
+                            "Choices": [
+                              {
+                                "Variable": "$",
+                                "StringMatches": "interact/jisseki/input/sokuhou-low/4156/",
+                                "Next": "Glue・低圧・エリア2"
+                              }
+                            ],
+                            "Default": "Lambda・低圧・エリア2"
+                          },
+                          "Glue・低圧・エリア2": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::glue:startJobRun.sync",
+                            "Parameters": {
+                              "JobName": "dhub-stg-use-sokuhou",
+                              "Arguments": {
+                                "bucketName": "p3-dhub-stg",
+                                "targetKey.$": "$",
+                                "areaId": "02",
+                                "powerVolumeNo": "JP06125",
+                                "outputKey": "interact/jisseki/csv/use-sokuhou/",
+                                "hoursBefore": "0"
+                              }
+                            },
+                            "End": true
+                          },
+                          "Lambda・低圧・エリア2": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::lambda:invoke",
+                            "Parameters": {
+                              "FunctionName": "arn:aws:lambda:ap-northeast-1:123456781234:function:dhub-stg-use-sokuhou:$LATEST",
+                              "Payload": {
+                                "target_key.$": "$",
+                                "area_id": "02",
+                                "power_volume_no": "JP06125"
+                              }
+                            },
+                            "Retry": [
+                              {
+                                "ErrorEquals": [
+                                  "Lambda.ServiceException",
+                                  "Lambda.AWSLambdaException",
+                                  "Lambda.SdkClientException",
+                                  "Lambda.TooManyRequestsException"
+                                ],
+                                "IntervalSeconds": 1,
+                                "MaxAttempts": 3,
+                                "BackoffRate": 2
+                              }
+                            ],
+                            "End": true
+                          }
+                        }
+                      },
+                      {
+                        "StartAt": "事業者分岐・低圧・エリア3",
+                        "States": {
+                          "事業者分岐・低圧・エリア3": {
+                            "Type": "Choice",
+                            "Choices": [
+                              {
+                                "Variable": "$",
+                                "StringMatches": "interact/jisseki/input/sokuhou-low/4156/",
+                                "Next": "Glue・低圧・エリア3"
+                              }
+                            ],
+                            "Default": "Lambda・低圧・エリア3"
+                          },
+                          "Glue・低圧・エリア3": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::glue:startJobRun.sync",
+                            "Parameters": {
+                              "JobName": "dhub-stg-use-sokuhou",
+                              "Arguments": {
+                                "bucketName": "p3-dhub-stg",
+                                "targetKey.$": "$",
+                                "areaId": "03",
+                                "powerVolumeNo": "JP06125",
+                                "outputKey": "interact/jisseki/csv/use-sokuhou/",
+                                "hoursBefore": "0"
+                              }
+                            },
+                            "End": true
+                          },
+                          "Lambda・低圧・エリア3": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::lambda:invoke",
+                            "Parameters": {
+                              "FunctionName": "arn:aws:lambda:ap-northeast-1:123456781234:function:dhub-stg-use-sokuhou:$LATEST",
+                              "Payload": {
+                                "target_key.$": "$",
+                                "area_id": "03",
+                                "power_volume_no": "JP06125"
+                              }
+                            },
+                            "Retry": [
+                              {
+                                "ErrorEquals": [
+                                  "Lambda.ServiceException",
+                                  "Lambda.AWSLambdaException",
+                                  "Lambda.SdkClientException",
+                                  "Lambda.TooManyRequestsException"
+                                ],
+                                "IntervalSeconds": 1,
+                                "MaxAttempts": 3,
+                                "BackoffRate": 2
+                              }
+                            ],
+                            "End": true
+                          }
+                        }
+                      }
+                    ],
+                    "End": true
+                  }
+                }
+              },
+              "ItemsPath": "$.CommonPrefixes",
+              "End": true
+            }
+          }
+        }
+      ],
+      "Comment": "高圧と低圧に分かれる（タグが異なるため）",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "Send Error Log Email"
+        }
+      ],
+      "Next": "Success"
+    },
+    "Send Error Log Email": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:ap-northeast-1:123456781234:function:dhub-stg-dimo-step-function-alert:$LATEST",
+        "Payload": {
+          "context.$": "$$",
+          "pre_result.$": "$"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "Fail"
+    },
+    "Success": {
+      "Type": "Succeed"
+    },
+    "Fail": {
+      "Type": "Fail"
+    }
+  }
+}

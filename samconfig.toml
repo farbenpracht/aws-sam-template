@@ -1,0 +1,19 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "sample-stack"
+s3_bucket = "sample-s3-bucket"
+s3_prefix = "sample-folder/stacks"
+region = "ap-northeast-1"
+capabilities = "CAPABILITY_IAM"
+disable_rollback = false
+image_repositories = []
+parameter_overrides = [
+    "SubnetId1=subnet-1260533b0da1dd6e0",
+    "SubnetId2=subnet-0c9d875c980af6259",
+    "SubnetId3=subnet-0f2012dd8c727488f",
+    "SecurityGroupId=sg-0ea5b4k279f1d7782",
+    "BucketName=sample-s3-bucket",
+    "SecretName=secret-manager-name",
+]

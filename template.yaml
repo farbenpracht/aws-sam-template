@@ -1,0 +1,138 @@
+# Find out more about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+AWSTemplateFormatVersion: '2010-09-09'
+# SAMテンプレート
+Transform: 'AWS::Serverless-2016-10-31'
+Description: 'Only English..'
+
+# テンプレートパラメータ
+Parameters:
+  SubnetId1:
+    Type: String
+  SubnetId2:
+    Type: String
+  SubnetId3:
+    Type: String
+  SecurityGroupId:
+    Type: String
+  BucketName:
+    Type: String
+  SecretName:
+    Type: String
+
+# 共通設定
+Globals:
+  Function:
+    Handler: lambda_function.lambda_handler
+    Runtime: python3.11
+    Architectures:
+      - x86_64
+
+    # 共通VPC設定
+    VpcConfig: 
+      # サブネット指定
+      SubnetIds:
+        - !Ref SubnetId1
+        - !Ref SubnetId2
+        - !Ref SubnetId3
+      # セキュリティグループ設定
+      SecurityGroupIds:
+        - !Ref SecurityGroupId
+
+Resources:
+  # Lambda関数
+  SampleLambda:
+      Type: AWS::Serverless::Function
+      Properties:
+        FunctionName: "test-lambda"
+        CodeUri: src/test-lambda/
+        Description: "Lambda関数の説明"
+        Timeout: 120
+        MemorySize: 256
+        EphemeralStorage:
+          Size: 512
+        Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/sample-iam-role"
+        Layers:
+          - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:sample-lambda-layer:1"
+        Environment: # 環境変数
+          Variables:
+            REGION_NAME: !Ref "AWS::Region"
+            SECRET_NAME: !Ref SecretName
+            
+  # イベントトリガー
+  SampleLambdaRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: "sample-rule"
+      Description: "S3イベントトリガー利用"
+      EventBusName: default
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - Object Created
+        detail:
+          bucket:
+            name:
+              - sample-s3-bucket
+          object:
+            key:
+              - prefix: test-folder/
+      State: ENABLED
+      Targets:
+        - Id: "SampleLambdaFunction"
+          Arn: !GetAtt SampleLambda.Arn
+
+  # トリガー権限
+  SampleLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref SampleLambda
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt SampleLambdaRule.Arn
+
+  
+
+  # Event Bridge Schedule・State Machineを起動するスケジュール
+  SampleSchedule:
+    Type: "AWS::Scheduler::Schedule"
+    Properties:
+      GroupName: "default"
+      Name: "sample-schedule" # スケジュール名
+      ScheduleExpression: "cron(0 * * * ? *)" # スケジュールcron式
+      Target:
+        Arn: !GetAtt SampleStateMachine.Arn # 起動ターゲットのステートマシン
+        RetryPolicy: # default設定
+          MaximumEventAgeInSeconds: 86400
+          MaximumRetryAttempts: 185
+        RoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/sample-iam-role"
+      Description: "スケジュールの説明"
+      State: "ENABLED" # 有効/無効
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      ScheduleExpressionTimezone: "Asia/Tokyo"
+  
+  # Step Functionsステートマシン
+  SampleStateMachine:
+    Type: "AWS::Serverless::StateMachine"
+    Properties:
+      Name: "sample-state-machine" # StateMachine名
+      DefinitionUri: def/sample-state-machine.asl.json # 定義コード・ファイル参照
+      Logging: # ログ設定
+        IncludeExecutionData: false
+        Destinations:
+        - CloudWatchLogsLogGroup: # ロググループ指定
+            LogGroupArn: !GetAtt SampleStateMachineLogGroup.Arn
+        Level: "ALL" # 全てのログを出力
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/sample-iam-role"
+      Type: "STANDARD" # 標準タイプ
+      Tracing:
+        Enabled: false
+  
+  # ロググループ・Step Functionsステートマシンの
+  SampleStateMachineLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupClass: "STANDARD"
+      LogGroupName: "/aws/vendedlogs/states/sample-state-machine-Logs"
+      DataProtectionPolicy: {}
